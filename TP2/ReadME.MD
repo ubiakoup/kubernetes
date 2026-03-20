@@ -1,4 +1,4 @@
-#### TP 2 DEPLOYEZ VOTRE PREMIERE APPLICATION (minikube et [eazylabs](http://docker.labs.eazytraining.fr/)) :
+# TP 2 DEPLOYEZ VOTRE PREMIERE APPLICATION (minikube et [eazylabs](http://docker.labs.eazytraining.fr/)) :
 
 - Créez un repertoire Kubernetes-training et un sous-dossier tp-2 et copiez vos manifests à l’interieur
     mkdir -p Kubernetes-training/tp-2
@@ -112,15 +112,4 @@ kubectl set image deployment/nginx-deployment nginx=nginx
 kubectl get replicaset -o wide 
 # Suppression du deploy :  
 kubectl delete deployment/nginx-deployment
-```
-
-Enfin, poussez ce de tp sur votre github afin de conservez tous vos fichiers
-
-```bash  
-cd ..
-git init
-git add . 
-git commit -m "message de commit personnalisé"
-git remote add origin http://url_repos_git
-git push origin main
 ```
