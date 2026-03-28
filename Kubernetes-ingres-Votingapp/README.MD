@@ -1,46 +1,48 @@
-# 🚀 Kubernetes Mini Project — Voting App avec Ingress & MetalLB
-
-## 🎯 Objectif
-
-Ce projet a pour but de maîtriser :
-
-* Kubernetes (déploiement d’une application microservices)
-* Les différents types de Services (ClusterIP, NodePort, LoadBalancer)
-* L’utilisation d’un **Ingress Controller (NGINX)**
-* La mise en place d’un **LoadBalancer local avec MetalLB**
-* Le routing basé sur des noms de domaine (DNS local)
+# 🚀 Kubernetes Voting App — Projet Complet (Ingress + MetalLB + Persistence + pgAdmin)
 
 ---
 
-## 🧠 Architecture finale
+## 🎯 Objectif
+
+Ce projet a pour but de déployer une application microservices (Voting App) sur Kubernetes avec :
+
+* Ingress Controller (NGINX)
+* LoadBalancer local (MetalLB)
+* Persistance des données (PV / PVC)
+* Interface d’administration PostgreSQL (pgAdmin)
+* DNS local via fichier hosts
+
+---
+
+## 🧠 Architecture
 
 ```
 Browser
    ↓
-DNS (hosts file)
+DNS (hosts)
    ↓
 MetalLB (LoadBalancer IP)
    ↓
-Ingress Controller (NGINX)
+Ingress Controller
    ↓
-Ingress Rules (host-based routing)
+Ingress Rules
    ↓
-Service (ClusterIP)
+Services (ClusterIP)
    ↓
-Pods
+Pods (vote / result / worker / db / redis / pgadmin)
 ```
 
 ---
 
 ## ⚙️ Prérequis
 
-* Minikube installé dans une VM (Vagrant)
+* Minikube installé
 * kubectl installé
-* Accès admin au fichier hosts
+* VM avec réseau accessible (ex: 192.168.99.x)
 
 ---
 
-## 🔧 Étape 1 — Démarrer Minikube
+## 🔧 1. Démarrage du cluster
 
 ```bash
 minikube start
@@ -48,20 +50,22 @@ minikube start
 
 ---
 
-## 🔌 Étape 2 — Activer les addons
+## 🔌 2. Activation des addons
 
 ```bash
 minikube addons enable ingress
 minikube addons enable metallb
 ```
 
-Configurer MetalLB :
+---
+
+## ⚖️ 3. Configuration MetalLB
 
 ```bash
 minikube addons configure metallb
 ```
 
-Exemple de plage IP (doit être dans le même réseau que la VM) :
+👉 Exemple de plage IP :
 
 ```
 192.168.99.100 - 192.168.99.120
@@ -69,48 +73,139 @@ Exemple de plage IP (doit être dans le même réseau que la VM) :
 
 ---
 
-## 📦 Étape 3 — Cloner le projet
+## 💾 4. Persistance (PV / PVC)
 
-```bash
-git clone https://github.com/dockersamples/example-voting-app.git
-cd example-voting-app/k8s-specifications
+### 📦 PostgreSQL PV
+
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: db-pv
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/data-pv"
 ```
 
 ---
 
-## 🧩 Étape 4 — Modifier les Services
-
-👉 Objectif : utiliser **ClusterIP** (car Ingress gère l’accès externe)
-
-### vote-service.yaml
+### 📦 PostgreSQL PVC
 
 ```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-pvc
 spec:
-  type: ClusterIP
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
 ```
-
-### result-service.yaml
-
-```yaml
-spec:
-  type: ClusterIP
-```
-
-⚠️ Supprimer toute ligne `nodePort`
 
 ---
 
-## 🌐 Étape 5 — Créer l’Ingress
+### 📦 Redis PV
 
-Créer `ingress.yaml`
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: redis-pv
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/dataredis-pv"
+```
+
+---
+
+### 📦 Redis PVC
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
+```
+
+---
+
+## 🐘 5. Déploiement pgAdmin
+
+### Deployment
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgadmin
+spec:
+  selector:
+    matchLabels:
+      app: pgadmin
+  template:
+    metadata:
+      labels:
+        app: pgadmin
+    spec:
+      containers:
+        - name: pgadmin
+          image: dpage/pgadmin4:9.8
+          env:
+            - name: PGADMIN_DEFAULT_EMAIL
+              value: admin@mail.com
+            - name: PGADMIN_DEFAULT_PASSWORD
+              value: secret
+          ports:
+            - containerPort: 5050
+```
+
+---
+
+### Service
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgadmin
+spec:
+  type: ClusterIP
+  selector:
+    app: pgadmin
+  ports:
+    - port: 80
+      targetPort: 80
+```
+
+---
+
+## 🌐 6. Ingress
 
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: voting-ingress
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   rules:
     - host: vote.votingapp.local
@@ -122,7 +217,7 @@ spec:
               service:
                 name: vote
                 port:
-                  number: 8080
+                  number: 80
 
     - host: result.votingapp.local
       http:
@@ -133,148 +228,179 @@ spec:
               service:
                 name: result
                 port:
-                  number: 8081
+                  number: 80
+
+    - host: pgadmin.votingapp.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pgadmin
+                port:
+                  number: 80
 ```
 
 ---
 
-## 🚀 Étape 6 — Déployer l’application
+## 🌍 7. DNS local (hosts)
 
-```bash
-kubectl apply -f .
-kubectl apply -f ingress.yaml
+Sur ton PC :
+
+```
+192.168.99.100 vote.votingapp.local
+192.168.99.100 result.votingapp.local
+192.168.99.100 pgadmin.votingapp.local
 ```
 
 ---
 
-## 🔍 Étape 7 — Vérifications
+## 🧪 8. Accès aux applications
+
+* http://vote.votingapp.local
+* http://result.votingapp.local
+* http://pgadmin.votingapp.local
+
+---
+
+## 🧠 9. Concepts clés
+
+### 🔥 Routing Kubernetes
+
+```
+Ingress → Service → Endpoints → Pod
+```
+
+---
+
+### ⚠️ Règle fondamentale
+
+```text
+targetPort = port réel du container
+```
+
+---
+
+### ❗ Important
+
+```text
+containerPort = informatif seulement
+```
+
+---
+
+## 🔍 10. Debug (502 / 503)
+
+### ❌ 502 Bad Gateway
+
+* mauvais port (targetPort incorrect)
+
+### ❌ 503 Service Unavailable
+
+* pod non READY
+* endpoints vides
+
+---
+
+## 🔧 11. Commandes utiles
+
+### 📦 Vérification
 
 ```bash
 kubectl get pods
 kubectl get svc
 kubectl get ingress
+kubectl get endpoints
+kubectl get pvc
+kubectl get pv
 ```
 
 ---
 
-## ⚖️ Étape 8 — Passer l’Ingress en LoadBalancer
+### 🔍 Détails
 
 ```bash
-kubectl edit svc ingress-nginx-controller -n ingress-nginx
-```
-
-Modifier :
-
-```yaml
-type: LoadBalancer
+kubectl describe pod <pod>
+kubectl describe svc <service>
+kubectl describe ingress <ingress>
 ```
 
 ---
 
-## 🌍 Étape 9 — Récupérer l’IP MetalLB
+### 📜 Logs
 
 ```bash
-kubectl get svc -n ingress-nginx
-```
-
-Exemple :
-
-```
-EXTERNAL-IP: 192.168.99.100
+kubectl logs <pod>
+kubectl logs -l app=pgadmin
 ```
 
 ---
 
-## 🧠 Étape 10 — Configurer le DNS local
-
-Modifier le fichier hosts sur TON PC :
-
-### Windows
-
-```
-C:\Windows\System32\drivers\etc\hosts
-```
-
-Ajouter :
-
-```
-192.168.99.100 vote.votingapp.local
-192.168.99.100 result.votingapp.local
-```
-
----
-
-## 🧪 Étape 11 — Tester
-
-### Navigateur
-
-```
-http://vote.votingapp.local
-http://result.votingapp.local
-```
-
-### curl
+### 🔄 Restart
 
 ```bash
-curl http://vote.votingapp.local
-curl http://result.votingapp.local
+kubectl delete pod -l app=pgadmin
 ```
 
 ---
 
-## 🐛 Debug
-
-### Vérifier ingress
+### 🔗 Test service
 
 ```bash
-kubectl describe ingress voting-ingress
-```
-
-### Vérifier controller
-
-```bash
-kubectl get pods -n ingress-nginx
-```
-
-### Test avec Host header
-
-```bash
-curl -H "Host: vote.votingapp.local" http://192.168.99.100
+kubectl port-forward svc/pgadmin 8080:80
 ```
 
 ---
 
-## ⚠️ Problèmes courants
+### 🌐 Test ingress
 
-### ❌ 404 Not Found
-
-➡️ Mauvais Host header
-
-### ❌ Connection timeout
-
-➡️ Mauvaise IP dans hosts
-
-### ❌ ping ne marche pas
-
-➡️ Normal (MetalLB ne répond pas ICMP)
+```bash
+curl -H "Host: pgadmin.votingapp.local" http://192.168.99.100
+```
 
 ---
 
-## 🎓 Concepts appris
+### 🔍 Endpoints (CRITIQUE)
 
-* ClusterIP vs NodePort vs LoadBalancer
-* Ingress Controller (NGINX)
-* Routing basé sur hostname
-* DNS local (/etc/hosts)
-* Fonctionnement de MetalLB (Layer2)
-* Debug réseau Kubernetes
+```bash
+kubectl get endpoints pgadmin
+```
+
+---
+
+### 🔍 Vérifier port réel
+
+```bash
+kubectl logs <pod> | grep Listening
+```
+
+---
+
+### 🔄 Restart ingress
+
+```bash
+kubectl rollout restart deployment ingress-nginx-controller -n ingress-nginx
+```
+
+---
+
+## 🧠 12. Leçons apprises
+
+* Kubernetes networking
+* Ingress Controller
+* MetalLB
+* Persistent storage
+* Debug avancé (502 / 503)
+* Routing interne Kubernetes
 
 ---
 
 ## 🚀 Conclusion
 
-Ce projet simule une architecture réelle utilisée en entreprise :
+Ce projet permet de maîtriser :
 
-* LoadBalancer (MetalLB)
-* Reverse Proxy (Ingress)
-* Microservices Kubernetes
+* Déploiement d’applications multi-services
+* Exposition externe via Ingress
+* Persistance des données
+* Debug réel en environnement Kubernetes
