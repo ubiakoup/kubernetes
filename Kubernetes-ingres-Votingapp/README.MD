@@ -122,7 +122,7 @@ spec:
               service:
                 name: vote
                 port:
-                  number: 80
+                  number: 8080
 
     - host: result.votingapp.local
       http:
@@ -133,7 +133,7 @@ spec:
               service:
                 name: result
                 port:
-                  number: 80
+                  number: 8081
 ```
 
 ---
