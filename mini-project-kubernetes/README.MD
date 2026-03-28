@@ -150,6 +150,8 @@ Exemple :
 ## 🌐 Étape 9 — Configurer DNS local
 
 Modifier le fichier hosts sur votre PC :
+WIN: C:\Windows\System32\drivers\etc\hosts
+Linux: /etc/hosts
 
 ```
 192.168.99.100 wordpress.local
