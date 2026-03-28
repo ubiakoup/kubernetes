@@ -278,13 +278,3 @@ Ce projet simule une architecture réelle utilisée en entreprise :
 * LoadBalancer (MetalLB)
 * Reverse Proxy (Ingress)
 * Microservices Kubernetes
-
-👉 Tu es maintenant capable de déployer une application avec un accès propre via domaine.
-
----
-
-## 🔥 Next Steps
-
-* Helm (packaging des applications)
-* HTTPS avec cert-manager
-* Monitoring (Prometheus / Grafana)
